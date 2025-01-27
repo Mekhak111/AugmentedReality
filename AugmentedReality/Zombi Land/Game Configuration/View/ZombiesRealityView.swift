@@ -10,28 +10,27 @@ import RealityKit
 
 struct ZombiesRealityView: View {
   
-  @State private var modelEntities: [Entity] = []
-  @State private var anchor: AnchorEntity?
+  @StateObject var zombiesViewModel: ZombiesViewModel = ZombiesViewModel()
   
   var body: some View {
     VStack {
       RealityView { content in
         content.camera = .spatialTracking
-        if anchor == nil {
+        if zombiesViewModel.anchor == nil {
           loadModels(into: content)
         }
       }
-      .edgesIgnoringSafeArea(.all)
+      .ignoresSafeArea(.all)
       HStack {
         Button("Start") {
-          modelEntities.forEach { entity in
-            playAnimation(named: "global scene animation", for: entity)
+          zombiesViewModel.modelEntities.forEach { entity in
+            zombiesViewModel.playAnimation(for: entity)
           }
         }
         .padding()
         
         Button("Stop") {
-          modelEntities.forEach { entity in
+          zombiesViewModel.modelEntities.forEach { entity in
             entity.stopAllAnimations()
           }
         }
@@ -41,56 +40,66 @@ struct ZombiesRealityView: View {
   }
   
   func loadModels(into content: RealityViewCameraContent) {
-    let newAnchor = AnchorEntity(world: .zero)
-    anchor = newAnchor
-    
-    let positions: [SIMD3<Float>] = [
-      [0, -1, -12],
-      [-2, -1, -12],
-      [2, -1, -12],
-      [0, -1, -14],
-      [-1, -1, -14],
-      [1, -1, -14],
-      [-3, -1, -12],
-      [3, -1, -12],
-      [-4, -1, -14],
-      [4, -1, -14]
-    ]
+    let newAnchor = AnchorEntity(
+      .plane(
+        .horizontal,
+        classification: [.floor, .table],
+        minimumBounds: [2, 2]
+      )
+    )
+    let planeModel = ModelEntity(
+      mesh: .generatePlane(
+        width: 6,
+        height: 30
+      )
+    )
+    let planeMaterial = SimpleMaterial(
+      color: .blue,
+      isMetallic: false
+    )
+    planeModel.model?.materials = [planeMaterial]
+    planeModel.transform.rotation = simd_quatf(
+      angle: -.pi / 2,
+      axis: [1, 0, 0]
+    )
+    planeModel.physicsBody = PhysicsBodyComponent(
+      massProperties: .default,
+      material: .default,
+      mode: .static
+    )
+    newAnchor.addChild(planeModel)
+    zombiesViewModel.anchor = newAnchor
     
     do {
-  
-      let baseModel = try Entity.load(named: "Woman.usdz")
-      baseModel.scale = [0.01, 0.01, 0.01]
-      baseModel.generateCollisionShapes(recursive: true, static: true)
       
-      for position in positions {
+      let baseModel = try ModelEntity.loadModel(
+        named: "Woman.usdz"
+      )
+      baseModel.scale = [0.01, 0.01, 0.01]
+      
+      baseModel.generateCollisionShapes(
+        recursive: true,
+        static: true
+      )
+      
+      baseModel.physicsBody = PhysicsBodyComponent(
+        massProperties: .default,
+        material: .default,
+        mode: .dynamic
+      )
+      
+      for position in zombiesViewModel.positions {
         let modelInstance = baseModel.clone(recursive: true)
         modelInstance.position = position
         newAnchor.addChild(modelInstance)
-        modelEntities.append(modelInstance)
+        zombiesViewModel.modelEntities.append(modelInstance)
       }
-      
       content.add(newAnchor)
     } catch {
       print("Error loading USDZ model: \(error)")
     }
   }
   
-  func playAnimation(named animationName: String, for entity: Entity) {
-    if let animation = entity.availableAnimations.first(where: { $0.name == animationName }) {
-      
-      entity.playAnimation(animation.repeat(), transitionDuration: 0.3)
-      
-      let targetPosition = SIMD3<Float>(0, -1, -1)
-      entity.move(to: Transform(scale: entity.transform.scale,
-                                rotation: entity.transform.rotation,
-                                translation: targetPosition),
-                  relativeTo: entity.parent,
-                  duration: 15.0)
-    } else {
-      print("Animation '\(animationName)' not found.")
-    }
-  }
 }
 
 #Preview {
