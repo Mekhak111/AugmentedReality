@@ -17,11 +17,11 @@ struct ZombiesRealityView: View {
   @State var zombiesLife: CGFloat = 1.0
   @State var bullet: ModelEntity?
   @State private var subs: [EventSubscription] = []
+  @State var index: Int = 0
+  @State var cameraAnchor: AnchorEntity?
   
   var body: some View {
     ZStack {
-      ProgressBarView(progress: $zombiesLife)
-        .padding()
       RealityView { content in
         self.content = content
         content.camera = .spatialTracking
@@ -29,81 +29,102 @@ struct ZombiesRealityView: View {
           self.planeModel = zombiesViewModel.loadModels(into: content)
         }
       } update: { content in
+        let camera = AnchorEntity(.camera)
+        camera.name = "Camera"
+        DispatchQueue.main.async {
+          cameraAnchor = camera
+        }
+        content.add(camera)
         guard let bullet else { return }
         let event =  content.subscribe(to: CollisionEvents.Began.self, on: bullet) { cllision in
-          print("Collision Between \(cllision.entityA.name) and \(cllision.entityB.name)")
+          if cllision.entityA.name == "scene" || cllision.entityB.name == "scene" {
+            if zombiesLife > 0.1 {
+              currentZombi?.lifeRemaining -= 1
+              zombiesLife -= 0.1
+            } else {
+              regenerateZombies()
+            }
+          }
         }
         DispatchQueue.main.async {
           subs.append(event)
         }
       }
       .ignoresSafeArea(.all)
-      HStack {
-        Button("Start") {
-          zombiesViewModel.modelEntities.forEach { entity in
-            zombiesViewModel.playAnimation(for: entity)
-          }
-        }
-        .padding()
-        Button("Place zombies") {
-          do {
-            let baseModel = try ModelEntity.loadModel(
-              named: "Woman.usdz"
-            )
-            baseModel.scale = [0.01, 0.01, 0.01]
-            baseModel.generateCollisionShapes(
-              recursive: true,
-              static: true
-            )
-            baseModel.physicsBody = PhysicsBodyComponent(
-              massProperties: .default,
-              material: .default,
-              mode: .static
-            )
-            baseModel.transform.rotation = simd_quatf(
-              angle: .pi/2,
-              axis: [1, 0, 0]
-            )
-            let material = OcclusionMaterial()
-            baseModel.model?.materials.append(material)
-            currentZombi = ZombieModel(name: "Woman",entity: baseModel, primaryLife: 20, lifeRemaining: .constant(10))
-            for position in zombiesViewModel.positions {
-              let modelInstance = baseModel.clone(recursive: true)
-              currentZombi?.entity = modelInstance
-              modelInstance.position = position
-              planeModel?.addChild(modelInstance)
-              zombiesViewModel.modelEntities.append(modelInstance)
+      VStack {
+        
+        ProgressBarView(progress: $zombiesLife)
+          .padding()
+        Spacer()
+        HStack {
+          Button("Start") {
+            do {
+              let baseModel = try ModelEntity.loadModel(
+                named: "Woman.usdz"
+              )
+              baseModel.scale = [0.01, 0.01, 0.01]
+              baseModel.generateCollisionShapes(
+                recursive: true,
+                static: true
+              )
+              baseModel.physicsBody = PhysicsBodyComponent(
+                massProperties: .default,
+                material: .default,
+                mode: .static
+              )
+              baseModel.transform.rotation = simd_quatf(
+                angle: .pi/2,
+                axis: [1, 0, 0]
+              )
+              let material = OcclusionMaterial()
+              baseModel.model?.materials.append(material)
+              currentZombi = ZombieModel(name: "Woman",entity: baseModel, primaryLife: 20, lifeRemaining: .constant(10))
+              baseModel.position = zombiesViewModel.getPosition()
+              planeModel?.addChild(baseModel)
+              zombiesViewModel.playAnimation(for: baseModel)
+            } catch {
+              print("Error loading USDZ model: \(error)")
             }
-          } catch {
-            print("Error loading USDZ model: \(error)")
           }
-        }
-        .padding()
-        Button("Shoot") {
-          guard let content = content else { return }
-          let direction = SIMD3<Float>(0, 0, -1)
-          let magnitude: Float = 1000.0
-          let bullet = zombiesViewModel.shoot(from: [0, 0.5, 0])
-          bullet.name = "Bullet"
-          bullet.model?.materials.append(OcclusionMaterial())
-          self.bullet = bullet
-          content.add(bullet)
-          zombiesViewModel.applyForce(to: bullet, direction: direction, magnitude: magnitude)
-          if zombiesLife > 0.1 {
-            currentZombi?.lifeRemaining -= 1
-            zombiesLife -= 0.1
-          } else {
-            regenerateZombies()
+          .padding()
+          Button("Shoot") {
+            guard let content = content else { return }
+            
+            let magnitude: Float = 1000.0
+            let pos = getCameraForwardVector(camera: cameraAnchor!)
+            let bullet = zombiesViewModel.shoot(from: pos )
+            bullet.name = "Bullet"
+            bullet.model?.materials.append(OcclusionMaterial())
+            self.bullet = bullet
+            content.add(bullet)
+            zombiesViewModel.applyForce(to: bullet, direction: pos, magnitude: magnitude)
           }
+          .padding()
         }
-        .padding()
       }
     }
   }
   
+  func getCameraForwardVector(camera: Entity) -> SIMD3<Float> {
+    let cameraOrientation = camera.orientation(relativeTo: nil)
+    let forward = cameraOrientation.act(SIMD3<Float>(0, 0, -1))
+    return normalize(forward)
+  }
+  
   func regenerateZombies() {
     self.currentZombi?.entity?.removeFromParent()
-    //TODO: - Implement Logic of new zombies
+    
+    zombiesLife = 1.0
+    getNewZombie()
+  }
+  
+  func getNewZombie() {
+    let modelInstance = currentZombi?.entity?.clone(recursive: true)
+    guard let modelInstance else { return }
+    currentZombi?.entity = modelInstance
+    modelInstance.position = zombiesViewModel.getPosition()
+    planeModel?.addChild(modelInstance)
+    zombiesViewModel.playAnimation(for: modelInstance)
   }
   
 }

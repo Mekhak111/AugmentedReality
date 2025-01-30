@@ -15,19 +15,25 @@ final class ZombiesViewModel: ObservableObject {
   @Published var modelEntities: [Entity] = []
   @Published var anchor: AnchorEntity?
   @Published var zombies: [ZombieModel] = []
+  private var index: Int = 0
   
   let positions: [SIMD3<Float>] = [
     [0, 3, 0],
-    //    [-2, 0, -12],
-    //    [2, 0, -12],
-    //    [0, 0, -14],
-    //    [-1, 0, -14],
-    //    [1, 0, -14],
-    //    [-3, 0, -12],
-    //    [3, 0, -12],
-    //    [-4, 0, -14],
-    //    [4, 0, -14]
+    [2, 3, 0],
+    [-2, 3, 0],
+    [1, 2, 0],
+    [-1, 2, 0],
+    [1, 2, 0],
   ]
+  
+  func getPosition() -> SIMD3<Float> {
+    if index >= positions.count {
+      index = 0
+    }
+    let pos = positions[index]
+    index +=  1
+    return pos
+  }
   
   func playAnimation(for entity: Entity) {
     if let animation = entity.availableAnimations.first {
@@ -67,6 +73,7 @@ final class ZombiesViewModel: ObservableObject {
     
     return bullet
   }
+  
   
   func applyForce(to entity: ModelEntity, direction: SIMD3<Float>, magnitude: Float) {
     guard let _ = entity.physicsBody else {
@@ -113,15 +120,5 @@ final class ZombiesViewModel: ObservableObject {
     anchor = newAnchor
     return planeModel
   }
-  
-  //MARK: - To Be Done
-  //  func applyForceFromCamera(to entity: ModelEntity, cameraTransform: Transform, magnitude: Float) {
-  //    guard let _ = entity.physicsBody else {
-  //      print("Physics body not found.")
-  //      return
-  //    }
-  //    let direction = cameraTransform.matrix.forwardVector * magnitude
-  //    entity.addForce(direction, relativeTo: nil)
-  //  }
   
 }
