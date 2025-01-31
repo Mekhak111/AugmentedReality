@@ -52,9 +52,7 @@ struct ZombiesRealityView: View {
       }
       .ignoresSafeArea(.all)
       VStack {
-        
         ProgressBarView(progress: $zombiesLife)
-          .padding()
         Spacer()
         HStack {
           Button("Start") {
@@ -63,19 +61,28 @@ struct ZombiesRealityView: View {
                 named: "Woman.usdz"
               )
               baseModel.scale = [0.01, 0.01, 0.01]
-              baseModel.generateCollisionShapes(
-                recursive: true,
-                static: true
-              )
-              baseModel.physicsBody = PhysicsBodyComponent(
-                massProperties: .default,
-                material: .default,
-                mode: .static
-              )
               baseModel.transform.rotation = simd_quatf(
                 angle: .pi/2,
                 axis: [1, 0, 0]
               )
+              let bounds = baseModel.visualBounds(relativeTo: nil)
+              let originalSize = bounds.extents
+              let scaledSize = SIMD3(
+                originalSize.x * 0.8,
+                originalSize.y * 7,
+                originalSize.z * 0.21
+              )
+              
+              let shape = ShapeResource.generateBox(size: scaledSize)
+              print(shape.bounds)
+              baseModel.components.set(CollisionComponent(shapes: [shape]))
+              baseModel.components.set(PhysicsBodyComponent(
+                massProperties: .default,
+                material: .default,
+                mode: .static
+              ))
+              
+              
               let material = OcclusionMaterial()
               baseModel.model?.materials.append(material)
               currentZombi = ZombieModel(name: "Woman",entity: baseModel, primaryLife: 20, lifeRemaining: .constant(10))
@@ -89,7 +96,6 @@ struct ZombiesRealityView: View {
           .padding()
           Button("Shoot") {
             guard let content = content else { return }
-            
             let magnitude: Float = 1000.0
             let pos = getCameraForwardVector(camera: cameraAnchor!)
             let bullet = zombiesViewModel.shoot(from: pos )
@@ -100,6 +106,8 @@ struct ZombiesRealityView: View {
             zombiesViewModel.applyForce(to: bullet, direction: pos, magnitude: magnitude)
           }
           .padding()
+          
+          Text("Level \(zombiesViewModel.level.rawValue)")
         }
       }
     }

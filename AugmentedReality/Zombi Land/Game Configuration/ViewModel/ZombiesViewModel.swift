@@ -15,15 +15,19 @@ final class ZombiesViewModel: ObservableObject {
   @Published var modelEntities: [Entity] = []
   @Published var anchor: AnchorEntity?
   @Published var zombies: [ZombieModel] = []
+  @Published var level: Level = .easy
   private var index: Int = 0
   
   let positions: [SIMD3<Float>] = [
-    [0, 3, 0],
-    [2, 3, 0],
-    [-2, 3, 0],
     [1, 2, 0],
     [-1, 2, 0],
     [1, 2, 0],
+    [0, 3, 0],
+    [2, 3, 0],
+    [-2, 3, 0],
+    [0, 6, 0],
+    [4, 6, 0],
+    [-4, 6, 0],
   ]
   
   func getPosition() -> SIMD3<Float> {
@@ -32,7 +36,21 @@ final class ZombiesViewModel: ObservableObject {
     }
     let pos = positions[index]
     index +=  1
+    detectLevel(count: index)
     return pos
+  }
+  
+  private func detectLevel(count: Int) {
+    switch count {
+    case 0..<positions.count/3:
+      level = .easy
+    case positions.count/3..<2*positions.count/3:
+      level = .medium
+    case 2*positions.count/3..<positions.count:
+      level = .hard
+    default:
+      level = .easy
+    }
   }
   
   func playAnimation(for entity: Entity) {
@@ -46,7 +64,7 @@ final class ZombiesViewModel: ObservableObject {
           translation: targetPosition
         ),
         relativeTo: entity.parent,
-        duration: 15.0
+        duration: level.rawValue
       )
       entity.generateCollisionShapes(recursive: true)
     } else {
@@ -96,8 +114,8 @@ final class ZombiesViewModel: ObservableObject {
     )
     let planeModel = ModelEntity(
       mesh: .generatePlane(
-        width: 8,
-        height: 8
+        width: 20,
+        height: 20
       )
     )
     let planeMaterial = SimpleMaterial(
