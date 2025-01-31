@@ -12,13 +12,11 @@ import _RealityKit_SwiftUI
 
 final class ZombiesViewModel: ObservableObject {
   
-  @Published var modelEntities: [Entity] = []
-  @Published var anchor: AnchorEntity?
-  @Published var zombies: [ZombieModel] = []
   @Published var level: Level = .easy
+  @Published var gunModel: ModelEntity?
+
   private var index: Int = 0
-  
-  let positions: [SIMD3<Float>] = [
+  private let positions: [SIMD3<Float>] = [
     [1, 2, 0],
     [-1, 2, 0],
     [1, 2, 0],
@@ -34,29 +32,16 @@ final class ZombiesViewModel: ObservableObject {
     if index >= positions.count {
       index = 0
     }
+    detectLevel(count: index)
     let pos = positions[index]
     index +=  1
-    detectLevel(count: index)
     return pos
-  }
-  
-  private func detectLevel(count: Int) {
-    switch count {
-    case 0..<positions.count/3:
-      level = .easy
-    case positions.count/3..<2*positions.count/3:
-      level = .medium
-    case 2*positions.count/3..<positions.count:
-      level = .hard
-    default:
-      level = .easy
-    }
   }
   
   func playAnimation(for entity: Entity) {
     if let animation = entity.availableAnimations.first {
       entity.playAnimation(animation.repeat(), transitionDuration: 0.3)
-      let targetPosition = SIMD3<Float>(0, 0, 0)
+      let targetPosition = SIMD3<Float>(0, -1, 0)
       entity.move(
         to: Transform(
           scale: entity.transform.scale,
@@ -72,8 +57,17 @@ final class ZombiesViewModel: ObservableObject {
     }
   }
   
-  func killZombi(_ entity: ModelEntity) {
-    entity.removeFromParent()
+  func loadGun() {
+    do {
+      let gunModel = try ModelEntity.loadModel(named: "fireGun")
+      gunModel.name = "Gun"
+      let rotationY = simd_quatf(angle: .pi, axis: [0, 1, 0])
+      gunModel.transform.rotation = rotationY
+      self.gunModel = gunModel
+    } catch {
+      print("Failed to Load Gun with error \(error)")
+    }
+            
   }
   
   func shoot(from position: SIMD3<Float>) -> ModelEntity {
@@ -92,7 +86,6 @@ final class ZombiesViewModel: ObservableObject {
     return bullet
   }
   
-  
   func applyForce(to entity: ModelEntity, direction: SIMD3<Float>, magnitude: Float) {
     guard let _ = entity.physicsBody else {
       print("Physics body not found.")
@@ -105,13 +98,6 @@ final class ZombiesViewModel: ObservableObject {
   func loadModels(
     into content: RealityViewCameraContent
   ) -> ModelEntity {
-    let newAnchor = AnchorEntity(
-      .plane(
-        .horizontal,
-        classification: [.floor, .table],
-        minimumBounds: [2, 2]
-      )
-    )
     let planeModel = ModelEntity(
       mesh: .generatePlane(
         width: 20,
@@ -119,7 +105,7 @@ final class ZombiesViewModel: ObservableObject {
       )
     )
     let planeMaterial = SimpleMaterial(
-      color: .red,
+      color: .clear,
       isMetallic: false
     )
     planeModel.model?.materials = [planeMaterial, OcclusionMaterial()]
@@ -135,8 +121,21 @@ final class ZombiesViewModel: ObservableObject {
     planeModel.position = [0,-1,-2]
     planeModel.generateCollisionShapes(recursive: true)
     content.add(planeModel)
-    anchor = newAnchor
     return planeModel
+  }
+  
+  private func detectLevel(count: Int) {
+    let divisioner = positions.count/3
+    switch count {
+    case 0..<divisioner:
+      level = .easy
+    case divisioner..<2*divisioner:
+      level = .medium
+    case divisioner..<3*divisioner:
+      level = .hard
+    default:
+      level = .easy
+    }
   }
   
 }
