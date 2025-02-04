@@ -14,30 +14,24 @@ final class ZombiesViewModel: ObservableObject {
   
   @Published var level: Level = .easy
   @Published var gunModel: ModelEntity?
+  @Published var bulletTarget: ModelEntity?
   @Published var lostTheGame: Bool = false
   
   private var bulletModel: ModelEntity?
   private var index: Int = 0
-  private let positions: [SIMD3<Float>] = [
-    [1, 2, 0],
-    [-1, 2, 0],
-    [1, 2, 0],
-    [0, 3, 0],
-    [2, 3, 0],
-    [-2, 3, 0],
-    [0, 6, 0],
-    [4, 6, 0],
-    [-4, 6, 0],
-  ]
   
   func getPosition() -> SIMD3<Float> {
-    if index >= positions.count {
-      index = 0
-    }
+    let rangesForX  = [(-9...(-3)), (3...9)]
+    let rangesForY =  [(-9...(-3)), (3...9)]
+    let selectedRangeforX = rangesForX.randomElement()!
+    let selectedRangeforY = rangesForY.randomElement()!
+    let x = Float(Int.random(in: selectedRangeforX))
+    let y = Float(Int.random(in: selectedRangeforY))
+    let z: Float = 0.0
     detectLevel(count: index)
-    let pos = positions[index]
-    index +=  1
-    return pos
+    index += 1
+    
+    return SIMD3<Float>(x, y, z)
   }
   
   func resetIndex() {
@@ -47,7 +41,7 @@ final class ZombiesViewModel: ObservableObject {
   func playAnimation(for entity: Entity) {
     if let animation = entity.availableAnimations.first {
       entity.playAnimation(animation.repeat(), transitionDuration: 0.3)
-      let targetPosition = SIMD3<Float>(0, -1, 0)
+      let targetPosition = SIMD3<Float>(0, -1.3, 0)
       entity.move(
         to: Transform(
           scale: entity.transform.scale,
@@ -70,25 +64,30 @@ final class ZombiesViewModel: ObservableObject {
       let rotationY = simd_quatf(angle: .pi, axis: [0, 1, 0])
       gunModel.transform.rotation = rotationY
       self.gunModel = gunModel
+      
+      let sphereMesh = MeshResource.generateSphere(radius: 0.00001)
+      let sphereMaterial = SimpleMaterial(color: .red, isMetallic: false)
+      let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [sphereMaterial])
+      sphereEntity.position = [0, 0.1, 0.25]
+      bulletTarget = sphereEntity
+      
+      gunModel.addChild(bulletTarget!)
     } catch {
       print("Failed to Load Gun with error \(error)")
     }
             
   }
-  
+    
   func createSpatialAudio() -> Entity {
       let audioSource = Entity()
       audioSource.spatialAudio = SpatialAudioComponent(gain: -5)
-      
       audioSource.spatialAudio?.directivity = .beam(focus: 1)
-      
       do {
           let resource = try AudioFileResource.load(named: "zombi_walking", configuration: .init(shouldLoop: true))
           audioSource.playAudio(resource)
       } catch {
           print("Error loading audio file: \\(error.localizedDescription)")
       }
-      
       return audioSource
   }
   
@@ -156,14 +155,11 @@ final class ZombiesViewModel: ObservableObject {
   }
   
   private func detectLevel(count: Int) {
-    let divisioner = positions.count/3
     switch count {
-    case 0..<divisioner:
+    case 0..<3:
       level = .easy
-    case divisioner..<2*divisioner:
+    case 3..<6:
       level = .medium
-    case divisioner..<3*divisioner:
-      level = .hard
     default:
       level = .easy
     }

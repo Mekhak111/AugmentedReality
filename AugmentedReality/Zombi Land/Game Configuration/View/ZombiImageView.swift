@@ -15,16 +15,17 @@ struct ZombiImageView: View {
   
   var body: some View {
     ZStack {
-      Image(.zombi)
+      Image(.zombiBackground)
+      
+        .resizable()
+        .ignoresSafeArea()
+        .scaledToFill()
       VStack {
         Text("YOU LOST")
           .font(.largeTitle)
           .fontWeight(.bold)
           .foregroundColor(.red)
-          .padding(.top, 250)
-        
         Spacer()
-        
         Button(action: {
           restartComplition()
         }) {
@@ -38,7 +39,6 @@ struct ZombiImageView: View {
             .cornerRadius(12)
             .shadow(radius: 5)
         }
-        .padding(.bottom, 250)
       }
       
     }

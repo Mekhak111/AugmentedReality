@@ -20,6 +20,8 @@ struct ZombiesRealityView: View {
   @State var index: Int = 0
   @State var cameraAnchor: AnchorEntity?
   @State var  isStarted: Bool = false
+  @State var loaction: (Float, Float) = (0,0)
+  let group = ModelSortGroup(depthPass: .prePass)
   
   var body: some View {
     if zombiesViewModel.lostTheGame {
@@ -32,7 +34,7 @@ struct ZombiesRealityView: View {
           guard let content = content else { return }
           let magnitude: Float = 1000.0
           let pos = getCameraForwardVector(camera: cameraAnchor!)
-          let bullet = zombiesViewModel.shoot(from: pos)
+          let bullet = zombiesViewModel.shoot(from: zombiesViewModel.bulletTarget!.position(relativeTo: nil))
           bullet.name = "Bullet"
           bullet.model?.materials.append(OcclusionMaterial())
           self.bullet = bullet
@@ -41,7 +43,6 @@ struct ZombiesRealityView: View {
           if let animation = zombiesViewModel.gunModel?.availableAnimations.first {
             zombiesViewModel.gunModel?.playAnimation(animation, transitionDuration: 0.02)
           }
-          
         }
     }
     
@@ -64,7 +65,19 @@ struct ZombiesRealityView: View {
     let modelInstance = currentZombi?.entity?.clone(recursive: true)
     guard let modelInstance else { return }
     currentZombi?.entity = modelInstance
-    modelInstance.position = zombiesViewModel.getPosition()
+    let position = zombiesViewModel.getPosition()
+    self.loaction = (position.x, position.y)
+    modelInstance.position = position
+    if position.y > 0 {
+      let rotation = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
+      modelInstance.transform.rotation = rotation
+    } else {
+      let rotationY = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
+      let rotataionX = simd_quatf(angle: .pi , axis: [0, 1, 0])
+      modelInstance.transform.rotation = rotationY * rotataionX
+      
+    }
+
     planeModel?.addChild(modelInstance)
     zombiesViewModel.playAnimation(for: modelInstance)
   }
@@ -96,15 +109,14 @@ extension ZombiesRealityView {
         }
         guard let gun = zombiesViewModel.gunModel else { return }
         gun.position = [-0.03,-0.2,-0.4]
+        
         camera.addChild(gun)
         
         content.add(camera)
       } update: { content in
         guard let bullet else { return }
         guard let zombi = currentZombi?.entity else { return }
-        guard let gun = zombiesViewModel.gunModel else { return }
-        print( abs(zombi.position(relativeTo: zombiesViewModel.gunModel).z))
-        if abs(zombi.position(relativeTo: zombiesViewModel.gunModel).z) < 1.0 {
+        if zombi.position == SIMD3<Float>(0, -1.3, 0) {
           DispatchQueue.main.async {
             zombiesViewModel.lostTheGame = true
             currentZombi?.entity?.removeFromParent()
@@ -120,7 +132,6 @@ extension ZombiesRealityView {
             }
           }
         }
-        
         DispatchQueue.main.async {
           subs.append(event)
         }
@@ -128,6 +139,11 @@ extension ZombiesRealityView {
       .ignoresSafeArea(.all)
       VStack {
         ProgressBarView(progress: $zombiesLife)
+        HStack {
+          Spacer()
+          MapView(locationXY: $loaction)
+            .padding()
+        }
         Spacer()
         if isStarted {
           levelLabel
@@ -144,7 +160,6 @@ extension ZombiesRealityView {
       do {
         let baseModel = try ModelEntity.loadModel(named: "Woman.usdz")
         baseModel.scale = [0.01, 0.01, 0.01]
-        baseModel.transform.rotation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
         baseModel.addChild(zombiesViewModel.createSpatialAudio())
         
         let bounds = baseModel.visualBounds(relativeTo: nil)
@@ -166,7 +181,19 @@ extension ZombiesRealityView {
         let material = OcclusionMaterial()
         baseModel.model?.materials.append(material)
         currentZombi = ZombieModel(name: "Woman", entity: baseModel, primaryLife: 20, lifeRemaining: .constant(10))
-        baseModel.position = zombiesViewModel.getPosition()
+        let position  = zombiesViewModel.getPosition()
+        self.loaction = (position.x, position.y)
+        baseModel.position = position
+        if position.y > 0 {
+          let rotation = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
+          baseModel.transform.rotation = rotation
+        } else {
+          let rotationY = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
+          let rotataionX = simd_quatf(angle: .pi , axis: [0, 1, 0])
+          baseModel.transform.rotation = rotationY * rotataionX
+          
+        }
+
         planeModel?.addChild(baseModel)
         zombiesViewModel.playAnimation(for: baseModel)
       } catch {
