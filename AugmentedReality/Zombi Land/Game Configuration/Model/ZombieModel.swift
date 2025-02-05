@@ -12,8 +12,6 @@ import SwiftUI
 struct ZombieModel {
   
   let name: String
-  weak var entity: ModelEntity?
-  var primaryLife: Double
-  @Binding var lifeRemaining: CGFloat
+  var entity: ModelEntity?
   
 }

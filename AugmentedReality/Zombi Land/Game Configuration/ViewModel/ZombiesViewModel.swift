@@ -17,8 +17,15 @@ final class ZombiesViewModel: ObservableObject {
   @Published var bulletTarget: ModelEntity?
   @Published var lostTheGame: Bool = false
   
+  private var textureResource: TextureResource?
+  private var audioFileResource: AudioFileResource?
   private var bulletModel: ModelEntity?
   private var index: Int = 0
+  
+  init() {
+    textureResource = try? TextureResource.load(named: "bullet_texture")
+    audioFileResource = try? AudioFileResource.load(named: "zombi_walking", configuration: .init(shouldLoop: true))
+  }
   
   func getPosition() -> SIMD3<Float> {
     let rangesForX  = [(-9...(-3)), (3...9)]
@@ -75,20 +82,17 @@ final class ZombiesViewModel: ObservableObject {
     } catch {
       print("Failed to Load Gun with error \(error)")
     }
-            
-  }
     
+  }
+  
   func createSpatialAudio() -> Entity {
-      let audioSource = Entity()
-      audioSource.spatialAudio = SpatialAudioComponent(gain: -5)
-      audioSource.spatialAudio?.directivity = .beam(focus: 1)
-      do {
-          let resource = try AudioFileResource.load(named: "zombi_walking", configuration: .init(shouldLoop: true))
-          audioSource.playAudio(resource)
-      } catch {
-          print("Error loading audio file: \\(error.localizedDescription)")
-      }
-      return audioSource
+    let audioSource = Entity()
+    audioSource.spatialAudio = SpatialAudioComponent(gain: -5)
+    audioSource.spatialAudio?.directivity = .beam(focus: 1)
+    if let audioFileResource {
+      audioSource.playAudio(audioFileResource)
+    }
+    return audioSource
   }
   
   func shoot(from position: SIMD3<Float>) -> ModelEntity {
@@ -100,7 +104,7 @@ final class ZombiesViewModel: ObservableObject {
         material: .default,
         mode: .dynamic
       )
-      if let textureResource = try? TextureResource.load(named: "bullet_texture")  {
+      if let  textureResource {
         bullet.model?.materials = [
           UnlitMaterial(texture: textureResource)
         ]
@@ -154,6 +158,48 @@ final class ZombiesViewModel: ObservableObject {
     return planeModel
   }
   
+  func loadZombie() -> ModelEntity {
+    do {
+      
+      let baseModel = try ModelEntity.loadModel(named: "Woman.usdz")
+      baseModel.scale = [0.01, 0.01, 0.01]
+      baseModel.addChild(createSpatialAudio())
+      let bounds = baseModel.visualBounds(relativeTo: nil)
+      let originalSize = bounds.extents
+      let scaledSize = SIMD3(
+        originalSize.x * 0.8,
+        originalSize.y * 7,
+        originalSize.z * 0.21
+      )
+      
+      let shape = ShapeResource.generateBox(size: scaledSize)
+      baseModel.components.set(CollisionComponent(shapes: [shape]))
+      baseModel.components.set(PhysicsBodyComponent(
+        massProperties: .default,
+        material: .default,
+        mode: .static
+      ))
+      
+      let material = OcclusionMaterial()
+      baseModel.model?.materials.append(material)
+      return baseModel
+    } catch {
+      print(error)
+      return ModelEntity()
+    }
+  }
+  
+  func rotate(_ modelInstance: ModelEntity, by position: SIMD3<Float>) {
+    if position.y > 0 {
+      let rotation = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
+      modelInstance.transform.rotation = rotation
+    } else {
+      let rotationY = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
+      let rotataionX = simd_quatf(angle: .pi , axis: [0, 1, 0])
+      modelInstance.transform.rotation = rotationY * rotataionX
+    }
+  }
+  
   private func detectLevel(count: Int) {
     switch count {
     case 0..<3:
@@ -161,7 +207,7 @@ final class ZombiesViewModel: ObservableObject {
     case 3..<6:
       level = .medium
     default:
-      level = .easy
+      level = .hard
     }
   }
   

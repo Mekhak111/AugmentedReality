@@ -11,84 +11,36 @@ import RealityKit
 struct ZombiesRealityView: View {
   
   @StateObject var zombiesViewModel: ZombiesViewModel = ZombiesViewModel()
+  
   @State var content: RealityViewCameraContent?
   @State var planeModel: ModelEntity?
+  @State var zombiesModel: ModelEntity?
   @State var currentZombi: ZombieModel?
   @State var zombiesLife: CGFloat = 1.0
   @State var bullet: ModelEntity?
-  @State private var subs: [EventSubscription] = []
-  @State var index: Int = 0
   @State var cameraAnchor: AnchorEntity?
-  @State var  isStarted: Bool = false
+  @State var isStarted: Bool = false
   @State var loaction: (Float, Float) = (0,0)
-  let group = ModelSortGroup(depthPass: .prePass)
+  
+  @State private var subs: [EventSubscription] = []
+  private let group = ModelSortGroup(depthPass: .prePass)
   
   var body: some View {
-    if zombiesViewModel.lostTheGame {
-      ZombiImageView(restartComplition: {
-        restart()
-      })
-    } else {
+    ZStack {
       playingContent
         .onTapGesture {
-          guard let content = content else { return }
-          let magnitude: Float = 1000.0
-          let pos = getCameraForwardVector(camera: cameraAnchor!)
-          let bullet = zombiesViewModel.shoot(from: zombiesViewModel.bulletTarget!.position(relativeTo: nil))
-          bullet.name = "Bullet"
-          bullet.model?.materials.append(OcclusionMaterial())
-          self.bullet = bullet
-          content.add(bullet)
-          zombiesViewModel.applyForce(to: bullet, direction: pos, magnitude: magnitude)
-          if let animation = zombiesViewModel.gunModel?.availableAnimations.first {
-            zombiesViewModel.gunModel?.playAnimation(animation, transitionDuration: 0.02)
-          }
+          handleTap()
         }
+      if zombiesViewModel.lostTheGame {
+        ZombiImageView(
+          restartComplition: {
+            restart()
+          })
+      }
     }
-    
-  }
-  
-  func getCameraForwardVector(camera: Entity) -> SIMD3<Float> {
-    let cameraOrientation = camera.orientation(relativeTo: nil)
-    let forward = cameraOrientation.act(SIMD3<Float>(0, 0, -1))
-    return normalize(forward)
-  }
-  
-  func regenerateZombies() {
-    self.currentZombi?.entity?.removeFromParent()
-    
-    zombiesLife = 1.0
-    getNewZombie()
-  }
-  
-  func getNewZombie() {
-    let modelInstance = currentZombi?.entity?.clone(recursive: true)
-    guard let modelInstance else { return }
-    currentZombi?.entity = modelInstance
-    let position = zombiesViewModel.getPosition()
-    self.loaction = (position.x, position.y)
-    modelInstance.position = position
-    if position.y > 0 {
-      let rotation = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
-      modelInstance.transform.rotation = rotation
-    } else {
-      let rotationY = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
-      let rotataionX = simd_quatf(angle: .pi , axis: [0, 1, 0])
-      modelInstance.transform.rotation = rotationY * rotataionX
-      
+    .onLoad {
+      loadZombi()
     }
-
-    planeModel?.addChild(modelInstance)
-    zombiesViewModel.playAnimation(for: modelInstance)
-  }
-  
-  func restart() {
-    isStarted = false
-    currentZombi = nil
-    zombiesLife = 1.0
-    zombiesViewModel.lostTheGame = false
-    zombiesViewModel.level = .easy
-    zombiesViewModel.resetIndex()
   }
   
 }
@@ -157,48 +109,7 @@ extension ZombiesRealityView {
   private var startButton: some View {
     Button(action: {
       isStarted = true
-      do {
-        let baseModel = try ModelEntity.loadModel(named: "Woman.usdz")
-        baseModel.scale = [0.01, 0.01, 0.01]
-        baseModel.addChild(zombiesViewModel.createSpatialAudio())
-        
-        let bounds = baseModel.visualBounds(relativeTo: nil)
-        let originalSize = bounds.extents
-        let scaledSize = SIMD3(
-          originalSize.x * 0.8,
-          originalSize.y * 7,
-          originalSize.z * 0.21
-        )
-        
-        let shape = ShapeResource.generateBox(size: scaledSize)
-        baseModel.components.set(CollisionComponent(shapes: [shape]))
-        baseModel.components.set(PhysicsBodyComponent(
-          massProperties: .default,
-          material: .default,
-          mode: .static
-        ))
-        
-        let material = OcclusionMaterial()
-        baseModel.model?.materials.append(material)
-        currentZombi = ZombieModel(name: "Woman", entity: baseModel, primaryLife: 20, lifeRemaining: .constant(10))
-        let position  = zombiesViewModel.getPosition()
-        self.loaction = (position.x, position.y)
-        baseModel.position = position
-        if position.y > 0 {
-          let rotation = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
-          baseModel.transform.rotation = rotation
-        } else {
-          let rotationY = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
-          let rotataionX = simd_quatf(angle: .pi , axis: [0, 1, 0])
-          baseModel.transform.rotation = rotationY * rotataionX
-          
-        }
-
-        planeModel?.addChild(baseModel)
-        zombiesViewModel.playAnimation(for: baseModel)
-      } catch {
-        print("Error loading USDZ model: \(error)")
-      }
+      getNewZombie()
     }) {
       Text("Start")
         .font(.system(size: 24, weight: .bold, design: .rounded))
@@ -230,6 +141,64 @@ extension ZombiesRealityView {
           .shadow(radius: 5)
       )
       .padding()
+  }
+  
+  private func loadZombi() {
+    let baseModel = zombiesViewModel.loadZombie()
+    zombiesModel = baseModel
+    currentZombi = ZombieModel(name: "Woman", entity: baseModel)
+  }
+  
+  func getCameraForwardVector(camera: Entity) -> SIMD3<Float> {
+    let cameraOrientation = camera.orientation(relativeTo: nil)
+    let forward = cameraOrientation.act(SIMD3<Float>(0, 0, -1))
+    return normalize(forward)
+  }
+  
+  func regenerateZombies() {
+    self.currentZombi?.entity?.removeFromParent()
+    zombiesLife = 1.0
+    getNewZombie()
+  }
+  
+  func getNewZombie() {
+    let modelInstance = zombiesModel?.clone(recursive: true)
+    currentZombi = ZombieModel(name: "Woman", entity: modelInstance)
+    guard let modelInstance else { return }
+    let position = zombiesViewModel.getPosition()
+    self.loaction = (position.x, position.y)
+    modelInstance.position = position
+    zombiesViewModel.rotate(modelInstance, by: position)
+    planeModel?.addChild(modelInstance)
+    zombiesViewModel.playAnimation(for: modelInstance)
+  }
+  
+  func restart() {
+    isStarted = false
+    currentZombi = nil
+    zombiesLife = 1.0
+    zombiesViewModel.lostTheGame = false
+    zombiesViewModel.level = .easy
+    zombiesViewModel.resetIndex()
+    loaction = (0,0)
+  }
+  
+  func handleTap() {
+    guard let content = content else { return }
+    let magnitude: Float = 1000.0
+    let pos = getCameraForwardVector(camera: cameraAnchor!)
+    let bullet = zombiesViewModel.shoot(from: zombiesViewModel.bulletTarget!.position(relativeTo: nil))
+    bullet.name = "Bullet"
+    bullet.model?.materials.append(OcclusionMaterial())
+    self.bullet = bullet
+    content.add(bullet)
+    zombiesViewModel.applyForce(to: bullet, direction: pos, magnitude: magnitude)
+    if let animation = zombiesViewModel.gunModel?.availableAnimations.first {
+      zombiesViewModel.gunModel?.playAnimation(animation, transitionDuration: 0.02)
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+      bullet.removeFromParent()
+    }
   }
   
 }
