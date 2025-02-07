@@ -11,6 +11,7 @@ import SwiftUI
 struct ProgressBarView: View {
   
   @Binding var progress: CGFloat
+  var colors: [Color]
   
   var body: some View {
     ZStack(alignment: .leading) {
@@ -19,7 +20,7 @@ struct ProgressBarView: View {
         .frame(height: 20)
       RoundedRectangle(cornerRadius: 12)
         .fill(LinearGradient(
-          gradient: Gradient(colors: [.green, .blue]),
+          gradient: Gradient(colors: colors),
           startPoint: .leading,
           endPoint: .trailing
         ))

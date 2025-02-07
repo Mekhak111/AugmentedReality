@@ -17,6 +17,7 @@ struct ZombiesRealityView: View {
   @State var zombiesModel: ModelEntity?
   @State var currentZombi: ZombieModel?
   @State var zombiesLife: CGFloat = 1.0
+  @State var yodasLife: CGFloat = 1.0
   @State var bullet: ModelEntity?
   @State var cameraAnchor: AnchorEntity?
   @State var isStarted: Bool = false
@@ -34,12 +35,15 @@ struct ZombiesRealityView: View {
       if zombiesViewModel.lostTheGame {
         ZombiImageView(
           restartComplition: {
-            restart()
+            withAnimation {
+              restart()
+            }
           })
       }
     }
     .onLoad {
       loadZombi()
+      zombiesViewModel.loadYoda()
     }
   }
   
@@ -63,18 +67,27 @@ extension ZombiesRealityView {
         gun.position = [-0.03,-0.2,-0.4]
         
         camera.addChild(gun)
-        
         content.add(camera)
-      } update: { content in
-        guard let bullet else { return }
-        guard let zombi = currentZombi?.entity else { return }
-        if zombi.position == SIMD3<Float>(0, -1.3, 0) {
-          DispatchQueue.main.async {
-            zombiesViewModel.lostTheGame = true
-            currentZombi?.entity?.removeFromParent()
-            currentZombi?.entity = nil
+        let event =  content.subscribe(to: CollisionEvents.Began.self, on: zombiesViewModel.yodaModel!) { cllision in
+          if yodasLife <= 0.1 {
+            withAnimation {
+              zombiesViewModel.lostTheGame = true
+              currentZombi?.entity?.removeFromParent()
+              currentZombi?.entity = nil
+            }
+          } else {
+            yodasLife -= 0.1
+            print(cllision.entityB.name)
+            if cllision.entityB.name == "zombi" {
+              regenerateZombies()
+            }
           }
         }
+        DispatchQueue.main.async {
+          subs.append(event)
+        }
+      } update: { content in
+        guard let bullet else { return }
         let event =  content.subscribe(to: CollisionEvents.Began.self, on: bullet) { cllision in
           if cllision.entityA.name == "scene" || cllision.entityB.name == "scene" {
             bullet.removeFromParent()
@@ -90,7 +103,7 @@ extension ZombiesRealityView {
       }
       .ignoresSafeArea(.all)
       VStack {
-        ProgressBarView(progress: $zombiesLife)
+        ProgressBarView(progress: $zombiesLife, colors: [.green, .blue])
         HStack {
           Spacer()
           MapView(locationXY: $loaction)
@@ -98,7 +111,17 @@ extension ZombiesRealityView {
         }
         Spacer()
         if isStarted {
-          levelLabel
+          VStack {
+            levelLabel
+            HStack {
+              Image(.yoda)
+                .resizable()
+                .frame(maxWidth: 30, maxHeight: 30)
+                .scaledToFill()
+              ProgressBarView(progress: $yodasLife, colors: [.red, .green])
+            }
+            .padding()
+          }
         } else {
           startButton
         }
@@ -110,6 +133,7 @@ extension ZombiesRealityView {
     Button(action: {
       isStarted = true
       getNewZombie()
+      getYoda()
     }) {
       Text("Start")
         .font(.system(size: 24, weight: .bold, design: .rounded))
@@ -156,9 +180,11 @@ extension ZombiesRealityView {
   }
   
   func regenerateZombies() {
-    self.currentZombi?.entity?.removeFromParent()
-    zombiesLife = 1.0
-    getNewZombie()
+    withAnimation {
+      self.currentZombi?.entity?.removeFromParent()
+      zombiesLife = 1.0
+      getNewZombie()
+    }
   }
   
   func getNewZombie() {
@@ -173,10 +199,18 @@ extension ZombiesRealityView {
     zombiesViewModel.playAnimation(for: modelInstance)
   }
   
+  func getYoda() {
+    guard let yoda = zombiesViewModel.yodaModel else { return }
+    yoda.scale = [0.003,0.003,0.003]
+    zombiesViewModel.rotate(yoda, by: yoda.position)
+    planeModel?.addChild(yoda)
+  }
+  
   func restart() {
     isStarted = false
     currentZombi = nil
     zombiesLife = 1.0
+    yodasLife = 1.0
     zombiesViewModel.lostTheGame = false
     zombiesViewModel.level = .easy
     zombiesViewModel.resetIndex()

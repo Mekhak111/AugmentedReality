@@ -15,8 +15,7 @@ struct ZombiImageView: View {
   
   var body: some View {
     ZStack {
-      Image(.zombiBackground)
-      
+      Image(.yodaBackgroud)
         .resizable()
         .ignoresSafeArea()
         .scaledToFill()
@@ -40,27 +39,6 @@ struct ZombiImageView: View {
             .shadow(radius: 5)
         }
       }
-      
-    }
-    .onAppear {
-      playSound()
-    }
-    .onDisappear {
-      audioPlayer = nil
-    }
-  }
-  
-  private func playSound() {
-    guard let soundURL = Bundle.main.url(forResource: "zombi_screaming", withExtension: "wav") else {
-      print("Audio file not found")
-      return
-    }
-    
-    do {
-      audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
-      audioPlayer?.play()
-    } catch {
-      print("Failed to play sound: \(error.localizedDescription)")
     }
   }
   

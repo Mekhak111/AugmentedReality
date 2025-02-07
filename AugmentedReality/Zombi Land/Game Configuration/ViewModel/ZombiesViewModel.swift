@@ -16,6 +16,7 @@ final class ZombiesViewModel: ObservableObject {
   @Published var gunModel: ModelEntity?
   @Published var bulletTarget: ModelEntity?
   @Published var lostTheGame: Bool = false
+  @Published var yodaModel: ModelEntity?
   
   private var textureResource: TextureResource?
   private var audioFileResource: AudioFileResource?
@@ -25,6 +26,7 @@ final class ZombiesViewModel: ObservableObject {
   init() {
     textureResource = try? TextureResource.load(named: "bullet_texture")
     audioFileResource = try? AudioFileResource.load(named: "zombi_walking", configuration: .init(shouldLoop: true))
+    
   }
   
   func getPosition() -> SIMD3<Float> {
@@ -53,7 +55,7 @@ final class ZombiesViewModel: ObservableObject {
         to: Transform(
           scale: entity.transform.scale,
           rotation: entity.transform.rotation,
-          translation: targetPosition
+          translation: yodaModel?.position ?? targetPosition
         ),
         relativeTo: entity.parent,
         duration: level.rawValue
@@ -140,7 +142,7 @@ final class ZombiesViewModel: ObservableObject {
     )
     let planeMaterial = SimpleMaterial(
       color: .clear,
-      isMetallic: false
+      isMetallic: true
     )
     planeModel.model?.materials = [planeMaterial, OcclusionMaterial()]
     planeModel.transform.rotation = simd_quatf(
@@ -173,6 +175,7 @@ final class ZombiesViewModel: ObservableObject {
       )
       
       let shape = ShapeResource.generateBox(size: scaledSize)
+      
       baseModel.components.set(CollisionComponent(shapes: [shape]))
       baseModel.components.set(PhysicsBodyComponent(
         massProperties: .default,
@@ -180,6 +183,16 @@ final class ZombiesViewModel: ObservableObject {
         mode: .static
       ))
       
+      
+      let colider = ModelEntity(
+        mesh: .generateCone(height: 5, radius: 3),
+        materials: [SimpleMaterial(
+          color: .clear,
+          isMetallic: true)]
+      )
+      colider.name = "zombi"
+      colider.position = [0, 5, 0]
+      baseModel.addChild(colider)
       let material = OcclusionMaterial()
       baseModel.model?.materials.append(material)
       return baseModel
@@ -197,6 +210,25 @@ final class ZombiesViewModel: ObservableObject {
       let rotationY = simd_quatf(angle: .pi/2 , axis: [1, 0, 0])
       let rotataionX = simd_quatf(angle: .pi , axis: [0, 1, 0])
       modelInstance.transform.rotation = rotationY * rotataionX
+    }
+  }
+  
+  func loadYoda() {
+    do {
+      let yodaModel = try ModelEntity.loadModel(named: "Baby_Yoda")
+      yodaModel.components.set(
+        PhysicsBodyComponent(
+          massProperties: .default,
+          material: .default,
+          mode: .static
+        )
+      )
+      yodaModel.name = "Yoda"
+      yodaModel.generateCollisionShapes(recursive: true,static: true)
+      self.yodaModel = yodaModel
+      self.yodaModel?.position = [0,3,0]
+    } catch {
+      print("Failed to load Yoda, Error: \(error)")
     }
   }
   
