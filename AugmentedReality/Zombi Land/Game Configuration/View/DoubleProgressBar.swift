@@ -26,7 +26,7 @@ struct ProgressBarView: View {
         ))
         .frame(width: progress * 300, height: 20)
         .animation(.easeInOut(duration: 0.3), value: progress)
-    }
+    } 
     .frame(width: 300)
     .padding()
   }

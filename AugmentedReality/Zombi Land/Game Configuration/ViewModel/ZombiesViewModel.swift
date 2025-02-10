@@ -31,7 +31,7 @@ final class ZombiesViewModel: ObservableObject {
   
   func getPosition() -> SIMD3<Float> {
     let rangesForX  = [(-9...(-3)), (3...9)]
-    let rangesForY =  [(-9...(-3)), (3...9)]
+    let rangesForY =  [(-9...(-4)), (4...9)]
     let selectedRangeforX = rangesForX.randomElement()!
     let selectedRangeforY = rangesForY.randomElement()!
     let x = Float(Int.random(in: selectedRangeforX))

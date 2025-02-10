@@ -24,7 +24,6 @@ struct ZombiesRealityView: View {
   @State var loaction: (Float, Float) = (0,0)
   
   @State private var subs: [EventSubscription] = []
-  private let group = ModelSortGroup(depthPass: .prePass)
   
   var body: some View {
     ZStack {
@@ -38,7 +37,8 @@ struct ZombiesRealityView: View {
             withAnimation {
               restart()
             }
-          })
+          }
+        )
       }
     }
     .onLoad {
@@ -53,78 +53,86 @@ extension ZombiesRealityView {
   
   private var playingContent: some View {
     ZStack {
-      RealityView { content in
-        self.content = content
-        content.camera = .spatialTracking
-        self.planeModel = zombiesViewModel.loadModels(into: content)
-        zombiesViewModel.loadGun()
-        let camera = AnchorEntity(.camera)
-        camera.name = "Camera"
-        DispatchQueue.main.async {
-          cameraAnchor = camera
-        }
-        guard let gun = zombiesViewModel.gunModel else { return }
-        gun.position = [-0.03,-0.2,-0.4]
-        
-        camera.addChild(gun)
-        content.add(camera)
-        let event =  content.subscribe(to: CollisionEvents.Began.self, on: zombiesViewModel.yodaModel!) { cllision in
-          if yodasLife <= 0.1 {
-            withAnimation {
-              zombiesViewModel.lostTheGame = true
-              currentZombi?.entity?.removeFromParent()
-              currentZombi?.entity = nil
-            }
-          } else {
-            yodasLife -= 0.1
-            print(cllision.entityB.name)
-            if cllision.entityB.name == "zombi" {
-              regenerateZombies()
-            }
-          }
-        }
-        DispatchQueue.main.async {
-          subs.append(event)
-        }
-      } update: { content in
-        guard let bullet else { return }
-        let event =  content.subscribe(to: CollisionEvents.Began.self, on: bullet) { cllision in
-          if cllision.entityA.name == "scene" || cllision.entityB.name == "scene" {
-            bullet.removeFromParent()
-            zombiesLife -= 0.5
-            if zombiesLife == 0 {
-              regenerateZombies()
-            }
-          }
-        }
-        DispatchQueue.main.async {
-          subs.append(event)
-        }
+      realityView
+      configView
+    }
+  }
+  
+  private var realityView: some View {
+    RealityView { content in
+      self.content = content
+      content.camera = .spatialTracking
+      self.planeModel = zombiesViewModel.loadModels(into: content)
+      zombiesViewModel.loadGun()
+      let camera = AnchorEntity(.camera)
+      camera.name = "Camera"
+      DispatchQueue.main.async {
+        cameraAnchor = camera
       }
-      .ignoresSafeArea(.all)
-      VStack {
-        ProgressBarView(progress: $zombiesLife, colors: [.green, .blue])
-        HStack {
-          Spacer()
-          MapView(locationXY: $loaction)
-            .padding()
-        }
-        Spacer()
-        if isStarted {
-          VStack {
-            levelLabel
-            HStack {
-              Image(.yoda)
-                .resizable()
-                .frame(maxWidth: 30, maxHeight: 30)
-                .scaledToFill()
-              ProgressBarView(progress: $yodasLife, colors: [.red, .green])
-            }
-            .padding()
+      guard let gun = zombiesViewModel.gunModel else { return }
+      gun.position = [-0.03,-0.2,-0.4]
+      
+      camera.addChild(gun)
+      content.add(camera)
+      guard let yoda = zombiesViewModel.yodaModel else { return }
+      let event =  content.subscribe(to: CollisionEvents.Began.self, on: yoda) { cllision in
+        if yodasLife <= 0.1 {
+          withAnimation {
+            zombiesViewModel.lostTheGame = true
+            currentZombi?.entity?.removeFromParent()
+            currentZombi?.entity = nil
           }
         } else {
-          startButton
+          yodasLife -= 0.1
+          if cllision.entityB.name == "zombi" {
+            regenerateZombies()
+          }
         }
+      }
+      DispatchQueue.main.async {
+        subs.append(event)
+      }
+    } update: { content in
+      guard let bullet else { return }
+      let event =  content.subscribe(to: CollisionEvents.Began.self, on: bullet) { cllision in
+        if cllision.entityA.name == "scene" || cllision.entityB.name == "scene" {
+          bullet.removeFromParent()
+          zombiesLife -= 0.5
+          if zombiesLife == 0 {
+            regenerateZombies()
+          }
+        }
+      }
+      DispatchQueue.main.async {
+        subs.append(event)
+      }
+    }
+    .ignoresSafeArea(.all)
+  }
+  
+  private var configView: some View {
+    VStack {
+      ProgressBarView(progress: $zombiesLife, colors: [.green, .blue])
+      HStack {
+        Spacer()
+        MapView(locationXY: $loaction)
+          .padding()
+      }
+      Spacer()
+      if isStarted {
+        VStack {
+          levelLabel
+          HStack {
+            Image(.yoda)
+              .resizable()
+              .frame(maxWidth: 30, maxHeight: 30)
+              .scaledToFill()
+            ProgressBarView(progress: $yodasLife, colors: [.red, .green])
+          }
+          .padding()
+        }
+      } else {
+        startButton
       }
     }
   }
